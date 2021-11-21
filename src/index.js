@@ -8,7 +8,7 @@ function Square(props) {
        their own state
     */
     return (
-        <button className="square" onClick={props.onClick}>
+        <button className={props.className} onClick={props.onClick}>
             {props.value}
         </button>
     );
@@ -25,6 +25,12 @@ class Board extends React.Component {
            and with their parent component
 
         */
+        let highlightClass = 'square';
+        if (this.props.winners && this.props.winners.indexOf(i) >= 0) {
+            console.log(this.props.winner);
+            console.log(i);
+            highlightClass = 'square highlighted'
+        }
         return (
             <Square
                 value={this.props.squares[i]}
@@ -35,30 +41,25 @@ class Board extends React.Component {
                    and have Square call that function when clicked
                 */
                 onClick={() => this.props.onClick(i)}
+                className={highlightClass}
                 // now we are passing down two props to square: value and onClick
                 // onClick prop is a function that Square can call when clicked
             />
         );
     }
-
+    
     render() {
+        let allSquares = [];
+        for (let i = 0; i < 3; i++) {
+            let currentRow = []
+            for (let j = 0; j < 3; j++) {
+                currentRow.push(this.renderSquare(i * 3 + j));
+            }
+            allSquares.push(<div className="board-row">{currentRow}</div>)
+        }
         return (
             <div>
-                <div className="board-row">
-                    {this.renderSquare(0)}
-                    {this.renderSquare(1)}
-                    {this.renderSquare(2)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(3)}
-                    {this.renderSquare(4)}
-                    {this.renderSquare(5)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(6)}
-                    {this.renderSquare(7)}
-                    {this.renderSquare(8)}
-                </div>
+                {allSquares}
             </div>
         );
     }
@@ -78,7 +79,7 @@ function calculateWinner(squares) {
     for (let i = 0; i < lines.length; i++) {
         const [x, y, z] = lines[i];
         if (squares[x] && squares[x] === squares[y] && squares[y] === squares[z]) {
-            return squares[x]
+            return [squares[x], lines[i]];
         }
     }
     return null;
@@ -89,9 +90,11 @@ class Game extends React.Component {
         this.state = {
             history: [{
                 squares: Array(9).fill(null),
+                location: null,
             }],
             stepNumber: 0,
             xIsNext: true,
+            movesReversed: false,
         };
     }
     handleClick(i) {
@@ -112,6 +115,7 @@ class Game extends React.Component {
                     // unlike push(), conncat() does not mutate the original array
                     history: history.concat([{
                         squares: squares,
+                        location: (i % 3, Math.floor(i / 2)),
                     }]),
                     stepNumber: history.length,
                     xIsNext: !this.state.xIsNext,
@@ -125,10 +129,17 @@ class Game extends React.Component {
             xIsNext: (step % 2) === 0,
         });
     }
+    toggleMoves() {
+        this.setState({
+            movesReversed: !this.state.movesReversed,
+        });
+    }
     render() {
         const history = this.state.history;
         const current = history[this.state.stepNumber];
         const winner = calculateWinner(current.squares);
+        const stepNumber = this.state.stepNumber;
+        const isDraw = (history.length === 10 && !winner) ? true : false;
         /* step refers to the current history element value
            move refers to the index.
            note: in order to use the map method on the array,
@@ -140,38 +151,49 @@ class Game extends React.Component {
             const desc = move ?
                 'Go to move #' + move :
                 'Go to game start';
+            /* assign proper keys when building dynamic lists.
+                keys tell React about the identity of each component
+                which allows React to maintain states between re-renders.
+                React automatically uses key to decide which components
+                to update. a component cannot inquire about its key (cannot
+                call this.props.key)
+                array indecies which React uses as default is not recommended
+                in most cases.
+                keys do not need to be globally unique - only between components
+                and their siblings.
+                here, we choose move (index) to be the key because they are never
+                re-ordered, deleted, or inserted in the middle so they are safe.
+            */
+            let moveStr = (move === stepNumber && history.length - 1 !== stepNumber) ? (<b>{desc}</b>) : desc;
             return (
-                /* assign proper keys when building dynamic lists.
-                   keys tell React about the identity of each component
-                   which allows React to maintain states between re-renders.
-                   React automatically uses key to decide which components
-                   to update. a component cannot inquire about its key (cannot
-                   call this.props.key)
-                   array indecies which React uses as default is not recommended
-                   in most cases.
-                   keys do not need to be globally unique - only between components
-                   and their siblings.
-                   here, we choose move (index) to be the key because they are never
-                   re-ordered, deleted, or inserted in the middle so they are safe.
-                */
                 <li key={move}>
-                    <button onClick={() => this.jumpTo(move)}>{desc}</button>
+                    <button onClick={() => this.jumpTo(move)}>
+                        {moveStr}
+                    </button>
                 </li>
-            )
+            );
         })
+        if (this.state.movesReversed) {
+            moves.reverse();
+        }
         let status;
+        let winnerLine;
         if (winner) {
-            status = 'Winner: ' + winner;
-        } else {
+            status = 'Winner: ' + winner[0];
+            winnerLine = winner[1];
+        } else if (isDraw) {
+            status = 'Draw'
+        } else{
             status = 'Next player: ' + (this.state.xIsNext ? 'X' : 'O');
         }
         return (
             <div className="game">
                 <div className="game-board">
-                <Board squares={current.squares} onClick={(i) => this.handleClick(i)}/>
+                <Board squares={current.squares} onClick={(i) => this.handleClick(i)} winners={winnerLine}/>
                 </div>
                 <div className="game-info">
                 <div>{status}</div>
+                <button onClick={() => this.toggleMoves()}>reverse</button>
                 <ol>{moves}</ol>
                 </div>
             </div>
